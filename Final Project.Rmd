@@ -1,0 +1,165 @@
+---
+title: Practical Machine Learning Final Project - Prediction Assignment  
+author: "Sacina Paudel"
+output: 
+  html_document:
+  toc: true
+  theme: united
+md_document: 
+  variant: markdown
+---
+  
+# PRACTICAL MACHINE LEARNING FINAL PROJECT REPORT
+This report represents the final project for the Practical Machine Learning course on Coursera.
+
+With the rise of affordable wearable technology such as Fitbit, Jawbone Up, and Nike FuelBand, it has become easier to collect vast amounts of data related to personal activities. The data from these devices can be used to improve one's health or find trends in behaviors, though most people focus on measuring how much activity they perform rather than how well they perform it. This project aims to predict how well six participants performed barbell lifts, based on data from accelerometers located on their belt, forearm, arm, and dumbbell.
+
+Further details on this dataset can be found at the following source:
+http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har 
+
+Data Sources
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+## Project Objective
+The primary goal is to predict the manner of exercise using the "classe" variable in the training data, based on accelerometer readings. The analysis should include model building, cross-validation, error estimation, and prediction of test cases. The final deliverable should consist of an R Markdown file and a compiled HTML report, which must be under 2,000 words and contain fewer than five figures.
+
+Reproducibility
+Since the R code itself will not be executed during the evaluation, ensure that the HTML report can be viewed by downloading the repository.
+
+```{r}
+# Load necessary libraries
+library(randomForest)
+library(caret)
+library(dplyr)
+```
+
+
+### Data Loading and Preparation
+
+```{r}
+train_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+# Download and read in the training and test datasets
+train_set <- read.csv(train_url, na.strings = c("NA", ""))
+test_set <- read.csv(test_url, na.strings = c("NA", ""))
+```
+
+
+Explore data
+```{r}
+#check the training data structure
+str(train_set)
+
+# Check for missing values
+sum(is.na(train_set))
+```
+
+### Cleaning the Data
+We need to clean the data by removing irrelevant columns, handling missing values, and ensuring the target variable (classe) is a factor.
+
+```{r}
+# Remove irrelevant columns (e.g., identifiers, timestamps)
+train_set_clean <- train_set %>%
+  select(-X, -user_name, -raw_timestamp_part_1, -raw_timestamp_part_2, -cvtd_timestamp, -new_window, -num_window)
+
+# Remove columns with near-zero variance
+nzv <- nearZeroVar(train_set_clean, saveMetrics = TRUE)
+train_set_clean <- train_set_clean[, !nzv$nzv]
+
+# Remove columns with too many missing values
+train_set_clean <- train_set_clean[, colSums(is.na(train_set_clean)) == 0]
+
+# Ensure 'classe' is a factor variable
+train_set_clean$classe <- as.factor(train_set_clean$classe)
+
+# Final structure of cleaned training set
+str(train_set_clean)
+```
+
+5. Partition the Data
+split the data into a training set and a validation set to evaluate the model’s performance.
+
+```{r}
+# Partition the data: 70% training, 30% validation
+set.seed(123)  # For reproducibility
+trainIndex <- createDataPartition(train_set_clean$classe, p = 0.7, list = FALSE)
+train_data <- train_set_clean[trainIndex, ]
+validation_data <- train_set_clean[-trainIndex, ]
+```
+
+
+6. Train the Random Forest Model
+Now, train a Random Forest model using the randomForest package.
+```{r}
+# Train Random Forest model
+set.seed(123)
+rf_model <- randomForest(classe ~ ., data = train_data, importance = TRUE, ntree = 200)
+
+# Display model summary
+print(rf_model)
+```
+
+7. Evaluate the Model
+You can now evaluate the Random Forest model on the validation dataset.
+```{r}
+# Make predictions on the validation dataset
+predictions <- predict(rf_model, validation_data)
+
+# Generate the confusion matrix to assess performance
+confusionMatrix(predictions, validation_data$classe)
+```
+
+8. Feature Importance
+The Random Forest model provides a measure of feature importance. Let’s plot the most important features.
+
+```{r}
+# Plot feature importance
+varImpPlot(rf_model)
+```
+
+9. Test Set Predictions
+Once the model is validated, apply it to the test set to make predictions.
+```{r}
+# Clean test set similar to train set
+test_set_clean <- test_set %>%
+  select(-X, -user_name, -raw_timestamp_part_1, -raw_timestamp_part_2, -cvtd_timestamp, -new_window, -num_window) %>%
+  select_if(function(col) !any(is.na(col)))
+
+# Make predictions on the test set
+test_predictions <- predict(rf_model, test_set_clean)
+```
+
+
+10. Save Predictions for Submission
+You can generate files with predictions for submission.
+```{r}
+# Function to generate output files
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("./problem_id_",i,".txt")
+    write.table(x[i], file=filename, quote=FALSE, row.names=FALSE, col.names=FALSE)
+  }
+}
+
+# Create files for test predictions
+pml_write_files(test_predictions)
+```
+
+
+
+
+
+
+
+
+
+
